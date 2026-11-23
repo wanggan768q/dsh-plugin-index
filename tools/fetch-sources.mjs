@@ -49,6 +49,11 @@ async function main() {
       process.stdout.write(`skip ${name}: --plugin ${ONLY} was requested\n`);
       continue;
     }
+    // A npm-sourced plugin is resolved from the registry, so there is nothing to clone.
+    if (source.source === 'npm') {
+      process.stdout.write(`skip ${name}: resolution comes from the npm registry\n`);
+      continue;
+    }
     if (typeof source.url !== 'string' || source.url === '') {
       throw new Error(`${name}: sources.json entry needs a "url"`);
     }

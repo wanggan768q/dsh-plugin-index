@@ -32,7 +32,8 @@ async function main() {
     const spec = marketInstallTarget(plugin.name, plugin.versions[0]).spec;
     notes.push(`  ${plugin.name} @ ${plugin.versions[0].version} -> ${spec}`);
     for (const version of plugin.versions) {
-      if (!/^[0-9a-f]{40}$/u.test(version.source.commit)) {
+      // An npm entry names no commit; the version alone pins the artifact.
+      if (version.source.type === 'git' && !/^[0-9a-f]{40}$/u.test(version.source.commit)) {
         failures.push(`${plugin.name}@${version.version}: commit must be a full 40-character SHA`);
       }
     }
@@ -48,8 +49,9 @@ async function main() {
     if (typeof source.url !== 'string' || !source.url.startsWith('https://')) {
       failures.push(`sources.json entry ${name} needs an https "url"`);
     }
-    if (typeof source.directory !== 'string' || source.directory === '') {
-      failures.push(`sources.json entry ${name} needs a "directory"`);
+    // A npm-sourced plugin is resolved from the registry, so it needs no clone directory.
+    if (source.source !== 'npm' && (typeof source.directory !== 'string' || source.directory === '')) {
+      failures.push(`sources.json entry ${name} needs a "directory" (or "source": "npm")`);
     }
   }
   for (const name of indexed) {

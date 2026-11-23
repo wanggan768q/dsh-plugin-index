@@ -3,5 +3,10 @@
     "url": "https://github.com/wanggan768q/dsh-discover-agents",
     "directory": "dsh-discover-agents",
     "allowMajor": false
+  },
+  "dsh-image-gen": {
+    "url": "https://github.com/shanliuling/dsh-image-gen",
+    "source": "npm",
+    "allowMajor": false
   }
 }

@@ -1,8 +1,11 @@
 // Sync `index.json` from the upstream repositories listed in `sources.json`.
 //
-// For every source this script reads the upstream `package.json` at each release tag
-// (lightweight or annotated), keeps the tags whose manifest declares the tag's own
-// version, and merges every such version into the matching `plugins[]` entry.
+// A source is resolved one of two ways, chosen by its `"source"` field:
+// - default (git): every release tag whose `package.json` declares the tag's own version.
+// - `"source": "npm"`: every version the npm registry publishes, with the registry's
+//   publish time as `publishTimestamp`. Use this for a package that publishes built
+//   output, because a git checkout of such a repository needs a prepare step that pnpm
+//   refuses to run without an explicit `allowBuilds` approval.
 //
 // Design rules:
 // - Manual metadata (title, description, icon, author, homepage, repository,
@@ -15,8 +18,8 @@
 // - A release whose manifest names a different package than the index entry is
 //   skipped: the index name becomes the install spec, so a rename has to arrive as
 //   a rename rather than as a version under a stale name.
-// - Every valid tag is backfilled, not only the newest, so a release pushed between
-//   two runs still reaches the index.
+// - Every valid release is backfilled, not only the newest, so a release published
+//   between two runs still reaches the index.
 // - An `engines.dsh` move to another DSH minor line aborts the run unless
 //   `allowMajor` is set on the source; that range change needs a human decision.
 // - `--dry-run` prints the plan without writing.
@@ -37,7 +40,9 @@ const INDEX_PATH = join(ROOT, 'index.json');
 const SOURCES_PATH = join(ROOT, 'sources.json');
 const ICONS_DIR = join(ROOT, 'icons');
 const SOURCE_ROOT = process.env.DSH_INDEX_SOURCE_ROOT || dirname(ROOT);
+const NPM_REGISTRY = process.env.DSH_INDEX_NPM_REGISTRY || 'https://registry.npmjs.org';
 const SEMVER_TAG = /^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/u;
+const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
 const ICON_EXTENSIONS = new Set(['.svg', '.png', '.jpg', '.jpeg', '.webp']);
 // `package.json.dsh.icon` is a file at most 256 KiB, which is also what the market
 // parser accepts for an inline icon; larger files are skipped rather than truncated.
@@ -147,6 +152,54 @@ function dshLine(range) {
 }
 
 /**
+ * Resolve every publishable release of a plugin that is distributed as an npm package.
+ *
+ * A git tag is not required here: what can be installed is what the registry serves, so
+ * the packument's version list is the source of truth and its publish times give each
+ * entry a `publishTimestamp`. Two npm versions can be missing a matching git tag, and a
+ * tag can exist without ever being published, so this deliberately does not consult the
+ * repository.
+ * @returns {Array<{ version: string, manifest: object, timestamp: number }>}
+ */
+async function resolveNpmReleases(pluginName, log) {
+  const url = `${NPM_REGISTRY}/${pluginName.replace('/', '%2f')}`;
+  let packument;
+  try {
+    const response = await fetch(url, { headers: { accept: 'application/json' } });
+    if (response.status === 404) {
+      log(`    ${pluginName} is not published on ${NPM_REGISTRY}`);
+      return [];
+    }
+    if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
+    packument = await response.json();
+  } catch (error) {
+    throw new SyncError(`cannot read ${url}: ${firstLine(error)}`);
+  }
+  const published = packument.versions ?? {};
+  const times = packument.time ?? {};
+  const releases = [];
+  for (const version of Object.keys(published)) {
+    if (!SEMVER.test(version)) {
+      log(`    skip ${version}: not an exact SemVer version`);
+      continue;
+    }
+    const manifest = published[version];
+    if (manifest.name !== pluginName) {
+      log(`    skip ${version}: package names ${String(manifest.name)}, index entry is ${pluginName}`);
+      continue;
+    }
+    const stamp = times[version];
+    const timestamp = stamp === undefined ? Number.NaN : Math.floor(Date.parse(stamp) / 1000);
+    if (!Number.isFinite(timestamp)) {
+      log(`    skip ${version}: the registry gives no publish time`);
+      continue;
+    }
+    releases.push({ version, manifest, timestamp });
+  }
+  return releases.sort((left, right) => compareVersions(right.version, left.version));
+}
+
+/**
  * Build one `versions[]` entry.
  * @param previous the highest already-indexed version entry, used to detect an
  *   `engines.dsh` line change.
@@ -170,11 +223,13 @@ function versionEntry(release, previous, plugin, source, log) {
   const entry = {
     version: release.version,
     publishTimestamp: release.timestamp,
-    source: {
-      type: 'git',
-      url: plugin.repository?.url ?? previous?.source?.url ?? source.url,
-      commit: release.commit,
-    },
+    source: source.source === 'npm'
+      ? { type: 'npm' }
+      : {
+          type: 'git',
+          url: plugin.repository?.url ?? previous?.source?.url ?? source.url,
+          commit: release.commit,
+        },
   };
   if (range !== undefined) entry.engines = { dsh: String(range) };
   else if (previousRange !== undefined) entry.engines = { dsh: previousRange };
@@ -230,7 +285,11 @@ async function createPlugin(pluginName, release, source, log) {
   const description = typeof manifest.description === 'string' && manifest.description !== ''
     ? { en: manifest.description }
     : undefined;
-  const icon = await importIcon(source.repoDir, { ...manifest, commit: release.commit }, pluginName, log);
+  // An npm-sourced plugin has no local checkout to read an icon file from, so the entry
+  // either carries the upstream artwork by hand or none at all.
+  const icon = source.repoDir === undefined
+    ? undefined
+    : await importIcon(source.repoDir, { ...manifest, commit: release.commit }, pluginName, log);
   const keywords = Array.isArray(manifest.keywords) ? manifest.keywords.filter((word) => typeof word === 'string') : [];
   // Field order follows the committed index files, so a newly created entry reads the
   // same way as a hand-written one and its diff stays small.
@@ -258,13 +317,21 @@ async function main() {
   let changed = false;
 
   for (const [pluginName, source] of Object.entries(sources)) {
-    if (source.directory === undefined || source.directory === '') {
-      throw new SyncError(`${pluginName}: sources.json entry needs a "directory"`);
+    // A npm-sourced plugin is resolved from the registry, so it needs no clone next to
+    // this repository; only a git-sourced one reads `directory`.
+    let releases;
+    let repoDir;
+    if (source.source === 'npm') {
+      log(`${pluginName}  <-  ${NPM_REGISTRY}`);
+      releases = await resolveNpmReleases(pluginName, log);
+    } else {
+      if (source.directory === undefined || source.directory === '') {
+        throw new SyncError(`${pluginName}: sources.json entry needs a "directory" (or "source": "npm")`);
+      }
+      repoDir = isAbsolute(source.directory) ? source.directory : join(SOURCE_ROOT, source.directory);
+      log(`${pluginName}  <-  ${repoDir}`);
+      releases = resolveReleases(repoDir, pluginName, log);
     }
-    const repoDir = isAbsolute(source.directory) ? source.directory : join(SOURCE_ROOT, source.directory);
-    log(`${pluginName}  <-  ${repoDir}`);
-
-    const releases = resolveReleases(repoDir, pluginName, log);
     if (releases.length === 0) {
       log('    no publishable release; index unchanged for this plugin');
       continue;
@@ -277,20 +344,25 @@ async function main() {
       changed = true;
     }
 
-    // Backfill every tagged release, not only the newest: a tag pushed between two runs
+    // Backfill every release, not only the newest: a version published between two runs
     // would otherwise never reach the index. Releases arrive newest first, so the first
     // one compared against the existing index is the version a fresh install picks.
     for (const release of releases) {
+      // An npm entry is identified by the version alone; a git entry also pins a commit,
+      // which can be republished under the same version only by rewriting history.
+      const label = release.commit === undefined ? release.version : `${release.version} at ${release.commit.slice(0, 12)}`;
       const existing = plugin.versions.find((entry) => entry.version === release.version);
-      if (existing !== undefined && existing.source?.commit === release.commit) {
-        log(`    ${release.version} already indexed at ${release.commit.slice(0, 12)}`);
+      const unchanged = existing !== undefined
+        && (release.commit === undefined || existing.source?.commit === release.commit);
+      if (unchanged) {
+        log(`    ${label} already indexed`);
         continue;
       }
       const newest = [...plugin.versions].sort((left, right) => compareVersions(right.version, left.version))[0];
       const entry = versionEntry(release, newest, plugin, source, log);
       if (existing === undefined) plugin.versions.push(entry);
       else Object.assign(existing, entry);
-      log(`    ${existing === undefined ? 'indexed' : 'refreshed'} ${release.version} -> ${release.commit}`);
+      log(`    ${existing === undefined ? 'indexed' : 'refreshed'} ${label}`);
       changed = true;
     }
   }
