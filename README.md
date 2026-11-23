@@ -46,6 +46,8 @@ https://wanggan768q.github.io/dsh-plugin-index/index.json
 
 已有的条目不会被改写，手工调整过的 `sources.json` 保持原样。
 
+发现步骤默认用仓库自带的 `GITHUB_TOKEN`——它能读其它账号下的公开仓库，只是限速比 PAT 松紧不同。`UPSTREAM_TOKEN` 是可选的覆盖项，配了就用它；两个都没有时代码退回匿名请求，仍能工作，但共享 runner 的 IP 可能被别处的任务把匿名配额耗尽。
+
 ### 让版本更新立刻生效
 
 定时任务是每天一次。想发版后秒级更新，在上游插件仓库加一个 job：

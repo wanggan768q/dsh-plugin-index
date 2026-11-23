@@ -60,14 +60,14 @@ jobs:
       # Only a scheduled or manually requested run lists the account's repositories;
       # a dispatch from one plugin must not fan out to a full discovery pass.
       #
-      # Discovery reads repositories this workflow does not run in, and the automatic
-      # `GITHUB_TOKEN` of this repository cannot read them, so the token stays empty
-      # when `UPSTREAM_TOKEN` is unset and the script falls back to anonymous access,
-      # which is enough for public repositories but rate-limited.
+      # The repository's automatic `GITHUB_TOKEN` reads public repositories of other
+      # accounts, which is all discovery needs. `UPSTREAM_TOKEN` stays an optional
+      # override; when it is unset this falls back to the automatic token, and the
+      # script itself falls back to anonymous access if that is rejected too.
       - name: Discover newly published plugin repositories
         if: github.event_name == 'schedule' || inputs.discover
         env:
-          GITHUB_TOKEN: ${{ secrets.UPSTREAM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.UPSTREAM_TOKEN || secrets.GITHUB_TOKEN }}
           DSH_INDEX_OWNER: wanggan768q
           DSH_INDEX_REPO_PREFIX: dsh-
         run: node tools/discover-sources.mjs
