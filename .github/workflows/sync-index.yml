@@ -31,10 +31,6 @@ concurrency:
   group: sync-index
   cancel-in-progress: false
 
-env:
-  # Upstream clones land outside the checkout, so `npm ci` and git status stay clean.
-  DSH_INDEX_SOURCE_ROOT: ${{ runner.temp }}/upstream
-
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -51,6 +47,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Point upstream clones outside the checkout
+        run: echo "DSH_INDEX_SOURCE_ROOT=${RUNNER_TEMP}/upstream" >> "${GITHUB_ENV}"
 
       - name: Clone upstream plugin repositories
         env:
