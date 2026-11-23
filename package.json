@@ -6,6 +6,8 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
+    "discover": "node tools/discover-sources.mjs",
+    "fetch": "node tools/fetch-sources.mjs",
     "sync": "node tools/sync-index.mjs",
     "validate": "node tools/validate-index.mjs"
   },

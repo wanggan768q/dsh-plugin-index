@@ -7,9 +7,14 @@
 // Design rules:
 // - Manual metadata (title, description, icon, author, homepage, repository,
 //   metadata) belongs to `index.json` and is never touched; only `versions` grows.
+//   A plugin the index does not carry yet is created from the manifest's own fields,
+//   so a freshly discovered repository needs no hand-written entry.
 // - A release is appended only when its tag points at a commit reachable from the
 //   upstream default branch head. A tag that points elsewhere is skipped, so the
 //   index never pins a SHA that a fresh clone cannot fetch.
+// - A release whose manifest names a different package than the index entry is
+//   skipped: the index name becomes the install spec, so a rename has to arrive as
+//   a rename rather than as a version under a stale name.
 // - Every valid tag is backfilled, not only the newest, so a release pushed between
 //   two runs still reaches the index.
 // - An `engines.dsh` move to another DSH minor line aborts the run unless
@@ -21,15 +26,22 @@
 //   them somewhere else, such as a CI checkout directory.
 
 import { execFileSync } from 'node:child_process';
-import { readFile, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, extname, isAbsolute, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { compareVersions } from './compare-versions.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const INDEX_PATH = join(ROOT, 'index.json');
 const SOURCES_PATH = join(ROOT, 'sources.json');
+const ICONS_DIR = join(ROOT, 'icons');
 const SOURCE_ROOT = process.env.DSH_INDEX_SOURCE_ROOT || dirname(ROOT);
 const SEMVER_TAG = /^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$/u;
+const ICON_EXTENSIONS = new Set(['.svg', '.png', '.jpg', '.jpeg', '.webp']);
+// `package.json.dsh.icon` is a file at most 256 KiB, which is also what the market
+// parser accepts for an inline icon; larger files are skipped rather than truncated.
+const MAX_ICON_BYTES = 256 * 1024;
 const DRY_RUN = process.argv.includes('--dry-run');
 
 class SyncError extends Error {}
@@ -38,47 +50,12 @@ function git(args) {
   return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
 
-function firstLine(error) {
-  return String(error.message ?? error).split('\n')[0];
+function gitBuffer(args) {
+  return execFileSync('git', args, { stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
-/** Compare two SemVer strings without pulling in a dependency. */
-export function compareVersions(left, right) {
-  const parse = (value) => {
-    const withoutBuild = value.split('+')[0];
-    const dash = withoutBuild.indexOf('-');
-    const core = dash === -1 ? withoutBuild : withoutBuild.slice(0, dash);
-    const prerelease = dash === -1 ? '' : withoutBuild.slice(dash + 1);
-    return {
-      numbers: core.split('.').map(Number),
-      pre: prerelease === '' ? [] : prerelease.split('.'),
-      hasPre: prerelease !== '',
-    };
-  };
-  const a = parse(left);
-  const b = parse(right);
-  for (let index = 0; index < 3; index += 1) {
-    if (a.numbers[index] !== b.numbers[index]) return a.numbers[index] < b.numbers[index] ? -1 : 1;
-  }
-  if (a.hasPre !== b.hasPre) return a.hasPre ? -1 : 1;
-  if (!a.hasPre) return 0;
-  const length = Math.max(a.pre.length, b.pre.length);
-  for (let index = 0; index < length; index += 1) {
-    const x = a.pre[index];
-    const y = b.pre[index];
-    if (x === undefined) return -1;
-    if (y === undefined) return 1;
-    const numericX = /^\d+$/u.test(x);
-    const numericY = /^\d+$/u.test(y);
-    if (numericX && numericY) {
-      if (Number(x) !== Number(y)) return Number(x) < Number(y) ? -1 : 1;
-    } else if (numericX !== numericY) {
-      return numericX ? -1 : 1;
-    } else if (x !== y) {
-      return x < y ? -1 : 1;
-    }
-  }
-  return 0;
+function firstLine(error) {
+  return String(error.message ?? error).split('\n')[0];
 }
 
 function readManifestAt(repoDir, commit, log) {
@@ -108,7 +85,13 @@ function resolveReleases(repoDir, pluginName, log) {
     .map((tag) => ({ tag, version: SEMVER_TAG.exec(tag)?.[1] }))
     .filter((entry) => entry.version !== undefined)
     .sort((left, right) => compareVersions(right.version, left.version));
-  if (candidates.length === 0) throw new SyncError(`no release tags in ${repoDir}`);
+  // An automatically discovered source is guaranteed a tag when it is added, but a tag
+  // deleted afterwards must not fail the whole run: the plugin simply stops contributing
+  // versions until it releases again, and the other sources still sync.
+  if (candidates.length === 0) {
+    log(`    no SemVer tag in ${repoDir}`);
+    return [];
+  }
 
   let reachable;
   try {
@@ -198,6 +181,75 @@ function versionEntry(release, previous, plugin, source, log) {
   return entry;
 }
 
+/**
+ * Copy the icon a release declares into `icons/`, so the market shows the upstream
+ * artwork without a second copy of it living in two places. A repository whose
+ * manifest declares no icon, or one that is not a web image, keeps no icon at all.
+ * @returns the index-relative path, or `undefined` when there is nothing to import.
+ */
+async function importIcon(repoDir, manifest, pluginName, log) {
+  const declared = manifest.dsh?.icon ?? manifest.icon;
+  if (typeof declared !== 'string' || declared === '') return undefined;
+  const relative = normalize(declared).split(sep).join('/');
+  if (relative.startsWith('../') || relative.startsWith('/') || isAbsolute(declared)) {
+    log(`    icon ${declared}: outside the package directory, ignored`);
+    return undefined;
+  }
+  const extension = extname(relative).toLowerCase();
+  if (!ICON_EXTENSIONS.has(extension)) {
+    log(`    icon ${declared}: not an SVG, PNG, JPEG, or WebP file, ignored`);
+    return undefined;
+  }
+  let bytes;
+  try {
+    bytes = gitBuffer(['-C', repoDir, 'show', `${manifest.commit ?? 'HEAD'}:${relative}`]);
+  } catch {
+    log(`    icon ${declared}: unreadable at the release commit, ignored`);
+    return undefined;
+  }
+  if (bytes.length === 0 || bytes.length > MAX_ICON_BYTES) {
+    log(`    icon ${declared}: ${String(bytes.length)} bytes, outside the 1..${String(MAX_ICON_BYTES)} range, ignored`);
+    return undefined;
+  }
+  const file = `${pluginName.replace(/^@[^/]+\//u, '').replace(/[^a-z0-9._-]/giu, '-')}${extension}`;
+  if (!DRY_RUN) {
+    await mkdir(ICONS_DIR, { recursive: true });
+    await writeFile(join(ICONS_DIR, file), bytes);
+  }
+  log(`    icon ${declared} -> icons/${file} (${String(bytes.length)} bytes)`);
+  return `icons/${file}`;
+}
+
+/**
+ * Build the `plugins[]` entry for a source the index does not carry yet, using the
+ * newest release's manifest. Everything here is a default a human may replace later:
+ * `sync-index.mjs` only ever appends versions to an entry that already exists.
+ */
+async function createPlugin(pluginName, release, source, log) {
+  const { manifest } = release;
+  const description = typeof manifest.description === 'string' && manifest.description !== ''
+    ? { en: manifest.description }
+    : undefined;
+  const icon = await importIcon(source.repoDir, { ...manifest, commit: release.commit }, pluginName, log);
+  const keywords = Array.isArray(manifest.keywords) ? manifest.keywords.filter((word) => typeof word === 'string') : [];
+  // Field order follows the committed index files, so a newly created entry reads the
+  // same way as a hand-written one and its diff stays small.
+  const plugin = {
+    name: pluginName,
+    title: { en: pluginName },
+    ...description === undefined ? {} : { description },
+    ...icon === undefined ? {} : { icon },
+    ...typeof manifest.author === 'string' && manifest.author !== '' ? { author: manifest.author } : {},
+    ...typeof manifest.homepage === 'string' && manifest.homepage.startsWith('https://') ? { homepage: manifest.homepage } : {},
+    repository: { url: source.url.replace(/\.git$/u, '') },
+    metadata: keywords.length > 0 ? { keywords } : {},
+    versions: [],
+  };
+  if (source.subdirectory === true) plugin.repository.directory = source.directory;
+  log(`    created a new plugins[] entry for ${pluginName}${icon === undefined ? '' : ` with ${icon}`}`);
+  return plugin;
+}
+
 async function main() {
   const index = JSON.parse(await readFile(INDEX_PATH, 'utf8'));
   const sources = JSON.parse(await readFile(SOURCES_PATH, 'utf8'));
@@ -220,9 +272,9 @@ async function main() {
 
     let plugin = index.plugins.find((entry) => entry.name === pluginName);
     if (plugin === undefined) {
-      plugin = { name: pluginName, title: { en: pluginName }, metadata: {}, versions: [] };
+      plugin = await createPlugin(pluginName, releases[0], { ...source, repoDir }, log);
       index.plugins.push(plugin);
-      log(`    created a new plugins[] entry for ${pluginName}`);
+      changed = true;
     }
 
     // Backfill every tagged release, not only the newest: a tag pushed between two runs
@@ -246,6 +298,9 @@ async function main() {
   for (const plugin of index.plugins) {
     plugin.versions.sort((left, right) => compareVersions(right.version, left.version));
   }
+  // A stable order keeps every run's output identical to the last one, so a sync that
+  // finds nothing new produces no diff at all.
+  index.plugins.sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
 
   if (DRY_RUN) log('dry run: index.json not written');
   else if (changed) {

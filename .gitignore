@@ -1,2 +1,3 @@
 .plugin-market-cache/
 node_modules/
+.dsh-tmp/

@@ -3,14 +3,15 @@ name: Sync plugin index
 # Rebuild `index.json` from upstream release tags.
 #
 # Triggers:
+# - schedule: a daily run that first discovers new plugin repositories under the owner
+#   and then rebuilds the index. This is the only trigger that can find a repository
+#   the index does not know about yet.
 # - repository_dispatch upstream-release: the upstream plugin repository calls this
-#   workflow right after it publishes a release. Fast path, runs in seconds.
-# - schedule: a daily safety net, so a missed dispatch or a tag pushed by hand still
-#   gets picked up.
+#   workflow right after it publishes a release. Fast path for versions.
 # - workflow_dispatch: manual run, optionally limited to one plugin.
 #
-# The job rewrites `index.json` only when an upstream tag is not indexed yet, so most
-# runs are no-ops that create no commit.
+# The job commits only when something actually changed: a new plugin entry, a new
+# version, an imported icon, or an updated `sources.json`. Most runs are no-ops.
 
 on:
   repository_dispatch:
@@ -23,6 +24,11 @@ on:
         description: Only sync this plugin name (leave empty for all)
         required: false
         type: string
+      discover:
+        description: Also look for new plugin repositories owned by the account
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -34,7 +40,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Check out the index repository
         uses: actions/checkout@v4
@@ -50,6 +56,21 @@ jobs:
 
       - name: Point upstream clones outside the checkout
         run: echo "DSH_INDEX_SOURCE_ROOT=${RUNNER_TEMP}/upstream" >> "${GITHUB_ENV}"
+
+      # Only a scheduled or manually requested run lists the account's repositories;
+      # a dispatch from one plugin must not fan out to a full discovery pass.
+      #
+      # Discovery reads repositories this workflow does not run in, and the automatic
+      # `GITHUB_TOKEN` of this repository cannot read them, so the token stays empty
+      # when `UPSTREAM_TOKEN` is unset and the script falls back to anonymous access,
+      # which is enough for public repositories but rate-limited.
+      - name: Discover newly published plugin repositories
+        if: github.event_name == 'schedule' || inputs.discover
+        env:
+          GITHUB_TOKEN: ${{ secrets.UPSTREAM_TOKEN }}
+          DSH_INDEX_OWNER: wanggan768q
+          DSH_INDEX_REPO_PREFIX: dsh-
+        run: node tools/discover-sources.mjs
 
       - name: Clone upstream plugin repositories
         env:
@@ -76,12 +97,18 @@ jobs:
       - name: Commit and push when the index changed
         run: |
           set -euo pipefail
-          if git diff --quiet -- index.json; then
-            echo "index.json is already up to date; nothing to commit"
+          # `icons/` only exists once a release declares an icon, and `git add` fails on
+          # a pathspec that matches nothing, so build the list from what is on disk.
+          paths="index.json sources.json"
+          if [ -d icons ]; then paths="${paths} icons"; fi
+          # shellcheck disable=SC2086
+          if git diff --quiet -- ${paths}; then
+            echo "index.json, sources.json, and icons are already up to date; nothing to commit"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.json
+          # shellcheck disable=SC2086
+          git add -- ${paths}
           git commit -m "chore: sync plugin index from upstream releases"
           git push origin HEAD
