@@ -1,0 +1,155 @@
+name: Add a plugin
+
+# Add one plugin repository to the index and publish the rebuilt index.
+#
+# Two ways to trigger it:
+# - workflow_dispatch: fill the form in the Actions tab.
+# - repository_dispatch add-plugin: a plugin repository asks to be listed by calling this
+#   workflow with `client_payload` fields of the same names as the form inputs.
+#
+# Nothing is written until the request checks out: the repository must be public and
+# alive, its `package.json` must declare `dsh.bundle.patch`, and the source must be able
+# to produce a version (a release tag for a git source, a published version for an npm
+# source). A rejected request leaves the repository untouched.
+
+on:
+  repository_dispatch:
+    types: [add-plugin]
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Repository to add, as https://github.com/<owner>/<repo> or <owner>/<repo>
+        required: true
+        type: string
+      source:
+        description: Where installable versions come from
+        required: false
+        type: choice
+        options:
+          - git
+          - npm
+        default: git
+      name:
+        description: Index package name (leave empty to use the upstream package.json name)
+        required: false
+        type: string
+      directory:
+        description: Local checkout directory for a git source (leave empty to use the repo name)
+        required: false
+        type: string
+      allow_major:
+        description: Accept an engines.dsh move to another DSH minor line
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: Check and sync without committing
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: add-plugin
+  cancel-in-progress: false
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the index repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Point upstream clones outside the checkout
+        run: echo "DSH_INDEX_SOURCE_ROOT=${RUNNER_TEMP}/upstream" >> "${GITHUB_ENV}"
+
+      # Both triggers describe the same request under the same field names, so each field
+      # is resolved once here: the form input when there is one, the dispatch payload
+      # otherwise. Later steps then read plain environment variables.
+      - name: Resolve the request
+        env:
+          FORM_REPOSITORY: ${{ inputs.repository }}
+          FORM_SOURCE: ${{ inputs.source }}
+          FORM_NAME: ${{ inputs.name }}
+          FORM_DIRECTORY: ${{ inputs.directory }}
+          FORM_ALLOW_MAJOR: ${{ inputs.allow_major }}
+          FORM_DRY_RUN: ${{ inputs.dry_run }}
+          PAYLOAD_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PAYLOAD_SOURCE: ${{ github.event.client_payload.source }}
+          PAYLOAD_NAME: ${{ github.event.client_payload.name }}
+          PAYLOAD_DIRECTORY: ${{ github.event.client_payload.directory }}
+          PAYLOAD_ALLOW_MAJOR: ${{ github.event.client_payload.allow_major }}
+          PAYLOAD_DRY_RUN: ${{ github.event.client_payload.dry_run }}
+        run: |
+          set -euo pipefail
+          repository="${FORM_REPOSITORY:-${PAYLOAD_REPOSITORY}}"
+          if [ -z "${repository}" ]; then
+            echo "no repository given; pass one as the workflow input or in client_payload.repository" >&2
+            exit 1
+          fi
+          {
+            echo "ADD_REPOSITORY=${repository}"
+            echo "ADD_SOURCE=${FORM_SOURCE:-${PAYLOAD_SOURCE:-git}}"
+            echo "ADD_NAME=${FORM_NAME:-${PAYLOAD_NAME}}"
+            echo "ADD_DIRECTORY=${FORM_DIRECTORY:-${PAYLOAD_DIRECTORY}}"
+            echo "ADD_ALLOW_MAJOR=${FORM_ALLOW_MAJOR:-${PAYLOAD_ALLOW_MAJOR}}"
+            echo "ADD_DRY_RUN=${FORM_DRY_RUN:-${PAYLOAD_DRY_RUN}}"
+          } >> "${GITHUB_ENV}"
+          echo "adding ${repository} as a ${FORM_SOURCE:-${PAYLOAD_SOURCE:-git}} source"
+
+      # Rejects a request that cannot produce a valid entry; writes sources.json otherwise.
+      - name: Add the source
+        env:
+          GITHUB_TOKEN: ${{ secrets.UPSTREAM_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          args=("${ADD_REPOSITORY}" --source "${ADD_SOURCE}")
+          if [ -n "${ADD_NAME}" ]; then args+=(--name "${ADD_NAME}"); fi
+          if [ -n "${ADD_DIRECTORY}" ]; then args+=(--directory "${ADD_DIRECTORY}"); fi
+          if [ "${ADD_ALLOW_MAJOR}" = "true" ]; then args+=(--allow-major); fi
+          node tools/add-source.mjs "${args[@]}"
+
+      # A full fetch rather than only the new plugin: the run then leaves the whole index
+      # consistent, and the extra time is bounded by the number of git-sourced plugins.
+      - name: Clone upstream plugin repositories
+        if: env.ADD_DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_TOKEN || secrets.GITHUB_TOKEN }}
+        run: node tools/fetch-sources.mjs
+
+      - name: Rewrite the index from upstream releases
+        if: env.ADD_DRY_RUN != 'true'
+        run: npm run sync
+
+      - name: Validate the rewritten index
+        run: npm run validate
+
+      - name: Commit and push the new plugin
+        if: env.ADD_DRY_RUN != 'true'
+        run: |
+          set -euo pipefail
+          paths="index.json sources.json"
+          if [ -d icons ]; then paths="${paths} icons"; fi
+          # shellcheck disable=SC2086
+          if git diff --quiet -- ${paths}; then
+            echo "nothing changed; the plugin was already indexed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # shellcheck disable=SC2086
+          git add -- ${paths}
+          git commit -m "feat: add ${ADD_REPOSITORY} to the index"
+          git push origin HEAD
