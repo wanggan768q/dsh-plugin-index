@@ -1,27 +1,63 @@
 {
   "format": 1,
-  "title": { "en": "Ambition's DSH plugins", "zh": "Ambition 的 DSH 插件" },
+  "title": {
+    "en": "Ambition's DSH plugins",
+    "zh": "Ambition 的 DSH 插件"
+  },
   "description": {
     "en": "Bundles maintained by wanggan768q for DeepSeek Harness.",
     "zh": "wanggan768q 维护的 DeepSeek Harness 组合包。"
   },
   "metadata": {
     "categories": {
-      "agent": { "title": { "en": "Agents", "zh": "Agent" } },
-      "workspace": { "title": { "en": "Workspace", "zh": "工作区" } }
+      "agent": {
+        "title": {
+          "en": "Agents",
+          "zh": "Agent"
+        }
+      },
+      "workspace": {
+        "title": {
+          "en": "Workspace",
+          "zh": "工作区"
+        }
+      }
     },
     "labels": {
-      "claude": { "title": { "en": "Claude", "zh": "Claude" } },
-      "codex": { "title": { "en": "Codex", "zh": "Codex" } },
-      "git": { "title": { "en": "Git", "zh": "Git" } },
-      "no-npm": { "title": { "en": "Install from Git", "zh": "从 Git 安装" } }
+      "claude": {
+        "title": {
+          "en": "Claude",
+          "zh": "Claude"
+        }
+      },
+      "codex": {
+        "title": {
+          "en": "Codex",
+          "zh": "Codex"
+        }
+      },
+      "git": {
+        "title": {
+          "en": "Git",
+          "zh": "Git"
+        }
+      },
+      "no-npm": {
+        "title": {
+          "en": "Install from Git",
+          "zh": "从 Git 安装"
+        }
+      }
     },
     "sortKeys": {}
   },
   "plugins": [
     {
       "name": "@local/dsh-discover-agents",
-      "title": { "en": "Workspace agents", "zh": "工作区 Agent 发现" },
+      "title": {
+        "en": "Workspace agents",
+        "zh": "工作区 Agent 发现"
+      },
       "description": {
         "en": "Discover workspace Claude and Codex agents and delegate tasks through DSH.",
         "zh": "把已有 Claude/Codex 角色指令复用为 DSH 子 agent，无需复制角色文件或启动外部 CLI。"
@@ -29,11 +65,22 @@
       "icon": "icons/dsh-discover-agents.svg",
       "author": "wanggan768q",
       "homepage": "https://github.com/wanggan768q/dsh-discover-agents#readme",
-      "repository": { "url": "https://github.com/wanggan768q/dsh-discover-agents" },
+      "repository": {
+        "url": "https://github.com/wanggan768q/dsh-discover-agents"
+      },
       "metadata": {
         "category": "agent",
-        "labels": ["claude", "codex", "no-npm"],
-        "keywords": ["agent", "subagent", "claude", "codex"],
+        "labels": [
+          "claude",
+          "codex",
+          "no-npm"
+        ],
+        "keywords": [
+          "agent",
+          "subagent",
+          "claude",
+          "codex"
+        ],
         "sortKeys": {}
       },
       "versions": [
@@ -45,7 +92,9 @@
             "url": "https://github.com/wanggan768q/dsh-discover-agents",
             "commit": "53aae3b6547e6e6b54d8b6e0702f6ae85d79274f"
           },
-          "engines": { "dsh": ">=0.2.2-rc.5 <0.3.0" }
+          "engines": {
+            "dsh": ">=0.2.2-rc.5 <0.3.0"
+          }
         }
       ]
     }

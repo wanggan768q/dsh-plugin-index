@@ -1,0 +1,88 @@
+name: Sync plugin index
+
+# Rebuild `index.json` from upstream release tags.
+#
+# Triggers:
+# - repository_dispatch upstream-release: the upstream plugin repository calls this
+#   workflow right after it publishes a release. Fast path, runs in seconds.
+# - schedule: a daily safety net, so a missed dispatch or a tag pushed by hand still
+#   gets picked up.
+# - workflow_dispatch: manual run, optionally limited to one plugin.
+#
+# The job rewrites `index.json` only when an upstream tag is not indexed yet, so most
+# runs are no-ops that create no commit.
+
+on:
+  repository_dispatch:
+    types: [upstream-release]
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+    inputs:
+      plugin:
+        description: Only sync this plugin name (leave empty for all)
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-index
+  cancel-in-progress: false
+
+env:
+  # Upstream clones land outside the checkout, so `npm ci` and git status stay clean.
+  DSH_INDEX_SOURCE_ROOT: ${{ runner.temp }}/upstream
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the index repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Clone upstream plugin repositories
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_TOKEN || secrets.GITHUB_TOKEN }}
+          INPUT_PLUGIN: ${{ inputs.plugin }}
+          DISPATCH_PLUGIN: ${{ github.event.client_payload.plugin }}
+        run: |
+          set -euo pipefail
+          # A dispatch from a plugin repository names that plugin; a manual run may pass
+          # one; a scheduled run clones every source.
+          only="${INPUT_PLUGIN:-${DISPATCH_PLUGIN:-}}"
+          if [ -n "${only}" ]; then
+            node tools/fetch-sources.mjs --plugin "${only}"
+          else
+            node tools/fetch-sources.mjs
+          fi
+
+      - name: Rewrite the index from upstream tags
+        run: npm run sync
+
+      - name: Validate the rewritten index
+        run: npm run validate
+
+      - name: Commit and push when the index changed
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- index.json; then
+            echo "index.json is already up to date; nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.json
+          git commit -m "chore: sync plugin index from upstream releases"
+          git push origin HEAD

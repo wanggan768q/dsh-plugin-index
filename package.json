@@ -1,0 +1,15 @@
+{
+  "name": "dsh-plugin-index",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DeepSeek Harness plugin market index (format 1)",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "sync": "node tools/sync-index.mjs",
+    "validate": "node tools/validate-index.mjs"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-plugin-market-index": "0.2.2-rc.5"
+  }
+}
