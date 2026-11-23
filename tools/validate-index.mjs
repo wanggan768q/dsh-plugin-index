@@ -73,8 +73,12 @@ async function main() {
   const formatted = `${JSON.stringify(document, null, 2)}\n`;
   if (formatted !== raw) failures.push('index.json is not formatted as 2-space JSON with a trailing newline');
 
-  const versions = document.plugins.flatMap((plugin) => plugin.versions.map((entry) => entry.version));
-  if (new Set(versions).size !== versions.length) failures.push('a plugin lists the same version twice');
+  // Two plugins may well share a version number, so duplicates are only a problem inside
+  // one plugin's own list.
+  for (const plugin of index.plugins) {
+    const versions = document.plugins.find((entry) => entry.name === plugin.name).versions.map((entry) => entry.version);
+    if (new Set(versions).size !== versions.length) failures.push(`${plugin.name}: versions[] lists the same version twice`);
+  }
 
   // `sync-index.mjs` sorts both levels on every run, so unsorted input would make the
   // next sync produce a diff that is only reordering.
