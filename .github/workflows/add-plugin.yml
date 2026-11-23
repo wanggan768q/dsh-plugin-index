@@ -104,8 +104,10 @@ jobs:
             echo "ADD_SOURCE=${FORM_SOURCE:-${PAYLOAD_SOURCE:-git}}"
             echo "ADD_NAME=${FORM_NAME:-${PAYLOAD_NAME}}"
             echo "ADD_DIRECTORY=${FORM_DIRECTORY:-${PAYLOAD_DIRECTORY}}"
-            echo "ADD_ALLOW_MAJOR=${FORM_ALLOW_MAJOR:-${PAYLOAD_ALLOW_MAJOR}}"
-            echo "ADD_DRY_RUN=${FORM_DRY_RUN:-${PAYLOAD_DRY_RUN}}"
+            # A boolean input arrives as "true" or "false" rather than as a shell value,
+            # so normalize it here instead of leaving each step to interpret the text.
+            echo "ADD_ALLOW_MAJOR=$([ "${FORM_ALLOW_MAJOR:-${PAYLOAD_ALLOW_MAJOR}}" = "true" ] && echo 1)"
+            echo "ADD_DRY_RUN=$([ "${FORM_DRY_RUN:-${PAYLOAD_DRY_RUN}}" = "true" ] && echo 1)"
           } >> "${GITHUB_ENV}"
           echo "adding ${repository} as a ${FORM_SOURCE:-${PAYLOAD_SOURCE:-git}} source"
 
@@ -118,26 +120,26 @@ jobs:
           args=("${ADD_REPOSITORY}" --source "${ADD_SOURCE}")
           if [ -n "${ADD_NAME}" ]; then args+=(--name "${ADD_NAME}"); fi
           if [ -n "${ADD_DIRECTORY}" ]; then args+=(--directory "${ADD_DIRECTORY}"); fi
-          if [ "${ADD_ALLOW_MAJOR}" = "true" ]; then args+=(--allow-major); fi
+          if [ -n "${ADD_ALLOW_MAJOR}" ]; then args+=(--allow-major); fi
           node tools/add-source.mjs "${args[@]}"
 
       # A full fetch rather than only the new plugin: the run then leaves the whole index
       # consistent, and the extra time is bounded by the number of git-sourced plugins.
       - name: Clone upstream plugin repositories
-        if: env.ADD_DRY_RUN != 'true'
         env:
           GH_TOKEN: ${{ secrets.UPSTREAM_TOKEN || secrets.GITHUB_TOKEN }}
         run: node tools/fetch-sources.mjs
 
       - name: Rewrite the index from upstream releases
-        if: env.ADD_DRY_RUN != 'true'
         run: npm run sync
 
       - name: Validate the rewritten index
         run: npm run validate
 
+      # A dry run stops here: the tree shows what would be committed, and the run is
+      # discarded without touching the branch.
       - name: Commit and push the new plugin
-        if: env.ADD_DRY_RUN != 'true'
+        if: env.ADD_DRY_RUN != '1'
         run: |
           set -euo pipefail
           paths="index.json sources.json"
