@@ -93,10 +93,11 @@ function readManifestAt(repoDir, commit, log) {
 /**
  * Resolve every publishable release for one source, newest first.
  * Each release is a tag whose name is an exact SemVer, whose commit is reachable from
- * the upstream head, and whose `package.json` at that commit declares the same version.
+ * the upstream head, and whose `package.json` at that commit declares the same version
+ * and the same package name the index entry uses.
  * @returns {Array<{ version: string, commit: string, manifest: object, timestamp: number }>}
  */
-function resolveReleases(repoDir, log) {
+function resolveReleases(repoDir, pluginName, log) {
   let tags;
   try {
     tags = git(['-C', repoDir, 'tag', '--list']).split('\n').filter(Boolean);
@@ -134,6 +135,12 @@ function resolveReleases(repoDir, log) {
     if (manifest === undefined) continue;
     if (manifest.version !== version) {
       log(`    skip ${tag}: tag says ${version}, package.json says ${String(manifest.version)}`);
+      continue;
+    }
+    // The index name becomes the install spec and the profile's dependency key, so a
+    // rename upstream must land here as a rename, not as a version under the old name.
+    if (manifest.name !== pluginName) {
+      log(`    skip ${tag}: package.json names ${String(manifest.name)}, index entry is ${pluginName}`);
       continue;
     }
     if (manifest.private !== true) {
@@ -205,7 +212,7 @@ async function main() {
     const repoDir = isAbsolute(source.directory) ? source.directory : join(SOURCE_ROOT, source.directory);
     log(`${pluginName}  <-  ${repoDir}`);
 
-    const releases = resolveReleases(repoDir, log);
+    const releases = resolveReleases(repoDir, pluginName, log);
     if (releases.length === 0) {
       log('    no publishable release; index unchanged for this plugin');
       continue;

@@ -1,5 +1,5 @@
 {
-  "@local/dsh-discover-agents": {
+  "dsh-discover-agents": {
     "url": "https://github.com/wanggan768q/dsh-discover-agents",
     "directory": "dsh-discover-agents",
     "allowMajor": false

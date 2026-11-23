@@ -53,7 +53,7 @@
   },
   "plugins": [
     {
-      "name": "@local/dsh-discover-agents",
+      "name": "dsh-discover-agents",
       "title": {
         "en": "Workspace agents",
         "zh": "工作区 Agent 发现"
@@ -85,12 +85,12 @@
       },
       "versions": [
         {
-          "version": "1.1.0",
-          "publishTimestamp": 1795422354,
+          "version": "1.2.0",
+          "publishTimestamp": 1795426369,
           "source": {
             "type": "git",
             "url": "https://github.com/wanggan768q/dsh-discover-agents",
-            "commit": "53aae3b6547e6e6b54d8b6e0702f6ae85d79274f"
+            "commit": "c425ca80180c68bf34a77ff2d573e2582893a733"
           },
           "engines": {
             "dsh": ">=0.2.2-rc.5 <0.3.0"

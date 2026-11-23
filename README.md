@@ -14,7 +14,7 @@ https://wanggan768q.github.io/dsh-plugin-index/index.json
 
 | 插件 | 版本 | 来源 |
 |---|---|---|
-| `@local/dsh-discover-agents` — 工作区 Agent 发现 | 1.1.0 | [wanggan768q/dsh-discover-agents](https://github.com/wanggan768q/dsh-discover-agents) @ `53aae3b6547e6e6b54d8b6e0702f6ae85d79274f` |
+| `dsh-discover-agents` — 工作区 Agent 发现 | 1.2.0 | [wanggan768q/dsh-discover-agents](https://github.com/wanggan768q/dsh-discover-agents) @ `c425ca80180c68bf34a77ff2d573e2582893a733` |
 
 该插件未发布到 npm，只能从 Git 提交安装；索引里的版本固定到具体提交，因此内容不会随分支漂移。
 
@@ -55,7 +55,7 @@ tools/validate-index.mjs       用 DSH 官方校验器验证 index.json
       -H "Accept: application/vnd.github+json" \
       -H "Authorization: Bearer ${INDEX_TOKEN}" \
       https://api.github.com/repos/wanggan768q/dsh-plugin-index/dispatches \
-      -d '{"event_type":"upstream-release","client_payload":{"plugin":"@local/dsh-discover-agents"}}'
+      -d '{"event_type":"upstream-release","client_payload":{"plugin":"dsh-discover-agents"}}'
 ```
 
 `INDEX_DISPATCH_TOKEN` 是一个对 `dsh-plugin-index` 有 `contents: write` 权限的 fine-grained PAT。没配也照样能用：每天的计划任务会自动补上。
