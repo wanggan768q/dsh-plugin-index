@@ -51,7 +51,7 @@ function parseArgs(argv) {
       const next = argv[index + 1];
       if (next === undefined || next.startsWith('--')) throw new AddError(`${argument} needs a value`);
       index += 1;
-      return next;
+      return next.trim();
     };
     if (argument === '--source') options.source = value();
     else if (argument === '--name') options.name = value();
@@ -63,6 +63,8 @@ function parseArgs(argv) {
   }
   if (positional.length !== 1) throw new AddError('pass exactly one repository: https://github.com/<owner>/<repo> or <owner>/<repo>');
   if (options.source !== 'git' && options.source !== 'npm') throw new AddError(`--source must be git or npm, not ${options.source}`);
+  // Inputs often arrive from web forms with stray whitespace; trim once here.
+  positional[0] = positional[0].trim();
   const repository = parseRepositoryUrl(positional[0].includes('://') ? positional[0] : `https://github.com/${positional[0]}`);
   if (repository === undefined) throw new AddError(`not a GitHub repository URL: ${positional[0]}`);
   options.repository = repository;
