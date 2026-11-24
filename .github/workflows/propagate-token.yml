@@ -1,0 +1,41 @@
+name: Propagate INDEX_TOKEN
+
+# Write the notify token (stored here as the `INDEX_TOKEN_SOURCE` secret) into
+# every `dsh-*` repository of the account, so each plugin's release workflow can
+# send an `upstream-release` repository_dispatch back to this index.
+#
+# The source token needs only Contents: write on this repository. Writing the
+# target secrets needs a second token with Actions: administration on the
+# account's repositories, which stays in this repository as `ADMIN_TOKEN`.
+#
+# Re-run this workflow after adding a new `dsh-*` repository.
+
+on:
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  propagate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Set INDEX_TOKEN on every dsh-* repository
+        env:
+          # gh CLI uses GH_TOKEN for its own API calls; the token needs Actions
+          # administration on the target repositories.
+          GH_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          # The value copied into each repository.
+          TOKEN_VALUE: ${{ secrets.INDEX_TOKEN_SOURCE }}
+        run: |
+          set -euo pipefail
+          repos="$(gh repo list "${GITHUB_REPOSITORY_OWNER}" --limit 1000 --json name -q '.[].name' | grep '^dsh-' || true)"
+          if [ -z "${repos}" ]; then
+            echo "no dsh-* repositories found"
+            exit 0
+          fi
+          for repo in ${repos}; do
+            if [ "${repo}" = "dsh-plugin-index" ]; then continue; fi
+            echo "setting INDEX_TOKEN on ${GITHUB_REPOSITORY_OWNER}/${repo}"
+            gh secret set INDEX_TOKEN --repo "${GITHUB_REPOSITORY_OWNER}/${repo}" --body "${TOKEN_VALUE}"
+          done
