@@ -16,7 +16,7 @@
 // Usage:
 //   node tools/add-source.mjs <repository> [options]
 //
-//   <repository>        https://github.com/<owner>/<repo>, or just <owner>/<repo>
+//   <repository>        https://github.com/<owner>/<repo>, <owner>/<repo>, or <owner>@<repo>
 //   --source <kind>     git (default) or npm; npm indexes registry versions instead of
 //                       git tags, for a package that publishes built output
 //   --name <package>    index package name; defaults to the upstream package.json name
@@ -61,11 +61,13 @@ function parseArgs(argv) {
     else if (argument.startsWith('--')) throw new AddError(`unknown option ${argument}`);
     else positional.push(argument);
   }
-  if (positional.length !== 1) throw new AddError('pass exactly one repository: https://github.com/<owner>/<repo> or <owner>/<repo>');
+  if (positional.length !== 1) throw new AddError('pass exactly one repository: https://github.com/<owner>/<repo>, <owner>/<repo> or <owner>@<repo>');
   if (options.source !== 'git' && options.source !== 'npm') throw new AddError(`--source must be git or npm, not ${options.source}`);
   // Inputs often arrive from web forms with stray whitespace; trim once here.
   positional[0] = positional[0].trim();
-  const repository = parseRepositoryUrl(positional[0].includes('://') ? positional[0] : `https://github.com/${positional[0]}`);
+  // Accept three spellings: a GitHub URL, owner/repo, or owner@repo.
+  const slug = positional[0].includes('://') ? positional[0] : positional[0].replace(/^([^/@]+)@([^@]+)$/u, '$1/$2');
+  const repository = parseRepositoryUrl(slug.includes('://') ? slug : `https://github.com/${slug}`);
   if (repository === undefined) throw new AddError(`not a GitHub repository URL: ${positional[0]}`);
   options.repository = repository;
   return options;

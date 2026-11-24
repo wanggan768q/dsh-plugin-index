@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       repository:
-        description: Repository to add, as https://github.com/<owner>/<repo> or <owner>/<repo>
+        description: Repository to add, as https://github.com/<owner>/<repo>, <owner>/<repo>, or <owner>@<repo>
         required: true
         type: string
       source:
