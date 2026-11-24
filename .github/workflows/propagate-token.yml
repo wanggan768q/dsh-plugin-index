@@ -59,6 +59,6 @@ jobs:
             echo "   creating .github/workflows/notify-index.yml"
             gh api --method PUT "repos/${full}/contents/.github/workflows/notify-index.yml" \
               -f message="ci: notify the plugin index on release" \
-              -F content=@"$(base64 -w0 /tmp/notify-index.yml)" \
+              -f content="$(base64 -w0 /tmp/notify-index.yml)" \
               --silent
           done
