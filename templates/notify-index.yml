@@ -1,0 +1,25 @@
+name: Notify plugin index
+
+# Tell the index repository that a release was published, so its Sync plugin
+# index workflow re-reads this plugin immediately instead of waiting for the
+# daily scheduled run.
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send upstream-release dispatch
+        env:
+          INDEX_TOKEN: ${{ secrets.INDEX_TOKEN }}
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${INDEX_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/__INDEX_REPO__/dispatches \
+            -d '{"event_type":"upstream-release","client_payload":{"plugin":"__PACKAGE_NAME__"}}'

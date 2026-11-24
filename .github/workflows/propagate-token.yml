@@ -1,12 +1,13 @@
 name: Propagate INDEX_TOKEN
 
 # Write the notify token (stored here as the `INDEX_TOKEN_SOURCE` secret) into
-# every `dsh-*` repository of the account, so each plugin's release workflow can
-# send an `upstream-release` repository_dispatch back to this index.
+# every `dsh-*` repository of the account, and create the release-notification
+# workflow in any `dsh-*` repository that does not have one yet.
 #
 # The source token needs only Contents: write on this repository. Writing the
-# target secrets needs a second token with Actions: administration on the
-# account's repositories, which stays in this repository as `ADMIN_TOKEN`.
+# target secrets and files needs a second token with Contents: write and
+# Actions: administration on the account's repositories, which stays in this
+# repository as `ADMIN_TOKEN`.
 #
 # Re-run this workflow after adding a new `dsh-*` repository.
 
@@ -20,10 +21,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Set INDEX_TOKEN on every dsh-* repository
+      - name: Check out the index repository
+        uses: actions/checkout@v4
+
+      - name: Set INDEX_TOKEN and create missing notify workflows
         env:
           # gh CLI uses GH_TOKEN for its own API calls; the token needs Actions
-          # administration on the target repositories.
+          # administration and Contents write on the target repositories.
           GH_TOKEN: ${{ secrets.ADMIN_TOKEN }}
           # The value copied into each repository.
           TOKEN_VALUE: ${{ secrets.INDEX_TOKEN_SOURCE }}
@@ -36,6 +40,25 @@ jobs:
           fi
           for repo in ${repos}; do
             if [ "${repo}" = "dsh-plugin-index" ]; then continue; fi
-            echo "setting INDEX_TOKEN on ${GITHUB_REPOSITORY_OWNER}/${repo}"
-            gh secret set INDEX_TOKEN --repo "${GITHUB_REPOSITORY_OWNER}/${repo}" --body "${TOKEN_VALUE}"
+            full="${GITHUB_REPOSITORY_OWNER}/${repo}"
+            echo "== ${full}"
+            echo "   setting INDEX_TOKEN"
+            gh secret set INDEX_TOKEN --repo "${full}" --body "${TOKEN_VALUE}"
+
+            # The notify workflow file: only created when absent, so a repository
+            # that keeps its own copy is never overwritten.
+            if gh api "repos/${full}/contents/.github/workflows/notify-index.yml" > /dev/null 2>&1; then
+              echo "   notify-index.yml already exists"
+              continue
+            fi
+            # The dispatch payload names the plugin by its package name, which for
+            # these repositories is the repository name (see sources.json).
+            sed -e "s|__INDEX_REPO__|${GITHUB_REPOSITORY_OWNER}/dsh-plugin-index|" \
+                -e "s|__PACKAGE_NAME__|${repo}|" \
+                templates/notify-index.yml > /tmp/notify-index.yml
+            echo "   creating .github/workflows/notify-index.yml"
+            gh api --method PUT "repos/${full}/contents/.github/workflows/notify-index.yml" \
+              -f message="ci: notify the plugin index on release" \
+              -F content=@"$(base64 -w0 /tmp/notify-index.yml)" \
+              --silent
           done
