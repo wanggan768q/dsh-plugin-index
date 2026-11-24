@@ -8,5 +8,10 @@
     "url": "https://github.com/shanliuling/dsh-image-gen",
     "source": "npm",
     "allowMajor": false
+  },
+  "dsh-next-step-suggestion": {
+    "url": "https://github.com/Panmax/dsh-next-step-suggestion",
+    "directory": "dsh-next-step-suggestion",
+    "allowMajor": false
   }
 }

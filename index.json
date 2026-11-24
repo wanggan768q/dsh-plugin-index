@@ -156,6 +156,13 @@
       },
       "versions": [
         {
+          "version": "0.12.2",
+          "publishTimestamp": 1795490954,
+          "source": {
+            "type": "npm"
+          }
+        },
+        {
           "version": "0.12.0",
           "publishTimestamp": 1795415326,
           "source": {
@@ -489,6 +496,145 @@
           "publishTimestamp": 1786975179,
           "source": {
             "type": "npm"
+          }
+        }
+      ]
+    },
+    {
+      "name": "dsh-next-step-suggestion",
+      "title": {
+        "en": "dsh-next-step-suggestion"
+      },
+      "description": {
+        "en": "Show a ghost next-step prompt suggestion in an empty composer after an agent turn finishes; press Tab to accept into an editable draft."
+      },
+      "icon": "icons/dsh-next-step-suggestion.svg",
+      "author": "Panmax",
+      "homepage": "https://github.com/Panmax/dsh-next-step-suggestion#readme",
+      "repository": {
+        "url": "https://github.com/Panmax/dsh-next-step-suggestion"
+      },
+      "metadata": {
+        "keywords": [
+          "dsh-plugin",
+          "deepseek-harness",
+          "cordis-plugin",
+          "dsh",
+          "cordis",
+          "plugin",
+          "composer",
+          "suggestion",
+          "autocomplete",
+          "ui"
+        ]
+      },
+      "versions": [
+        {
+          "version": "0.3.1",
+          "publishTimestamp": 1795092963,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Panmax/dsh-next-step-suggestion",
+            "commit": "f16ad4b0a9277efbc6958e57861f655e9164d327"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+          }
+        },
+        {
+          "version": "0.3.0",
+          "publishTimestamp": 1795091805,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Panmax/dsh-next-step-suggestion",
+            "commit": "1d4bfa7f8c202bdbe122767e1da92823954f5c0a"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+          }
+        },
+        {
+          "version": "0.2.2",
+          "publishTimestamp": 1795058850,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Panmax/dsh-next-step-suggestion",
+            "commit": "a2b0f86937f3c9daaeb4f3e407e82f25d8d6bf93"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+          }
+        },
+        {
+          "version": "0.2.1",
+          "publishTimestamp": 1795010283,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Panmax/dsh-next-step-suggestion",
+            "commit": "78e1b7ba2fc1965f2c2bab1a8287bb0e805e8542"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+          }
+        },
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1795000694,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Panmax/dsh-next-step-suggestion",
+            "commit": "74ee125904688023c6640e309f9ae080bc1e1931"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+          }
+        },
+        {
+          "version": "0.1.3",
+          "publishTimestamp": 1794996976,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Panmax/dsh-next-step-suggestion",
+            "commit": "fe307cf25b61ecea638783aae51970735d1a8760"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+          }
+        },
+        {
+          "version": "0.1.2",
+          "publishTimestamp": 1794992394,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Panmax/dsh-next-step-suggestion",
+            "commit": "e9ff540d52855369d1037aec69ad84c6b0343174"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+          }
+        },
+        {
+          "version": "0.1.1",
+          "publishTimestamp": 1794989938,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Panmax/dsh-next-step-suggestion",
+            "commit": "53a3a7d11eb0ef794fd0db083dcc6ac20cd6d039"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.3.0-0"
+          }
+        },
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1794989437,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/Panmax/dsh-next-step-suggestion",
+            "commit": "55c612ae30fb40b79732bd78c367c2b75549ba5c"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.3.0-0"
           }
         }
       ]
