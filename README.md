@@ -12,10 +12,15 @@ https://wanggan768q.github.io/dsh-plugin-index/index.json
 
 ## 收录的插件
 
+表格由 `npm run render-readme` 根据 `index.json` 自动生成，展示各插件已收录的最高 SemVer 版本（可能包含预发布版本）；添加和同步工作流都会更新它，请勿手动修改标记区块。
+
+<!-- plugin-table:start -->
 | 插件 | 版本 | 来源 |
 |---|---|---|
-| `dsh-discover-agents` — 工作区 Agent 发现 | 1.2.0 | [wanggan768q/dsh-discover-agents](https://github.com/wanggan768q/dsh-discover-agents) @ `c425ca80180c68bf34a77ff2d573e2582893a733` |
-| `dsh-image-gen` — 图像工坊 | 0.12.0 | npm 上的 `dsh-image-gen`，源码在 [shanliuling/dsh-image-gen](https://github.com/shanliuling/dsh-image-gen) |
+| `dsh-discover-agents` — 工作区 Agent 发现 | 1.3.0 | [wanggan768q/dsh-discover-agents](https://github.com/wanggan768q/dsh-discover-agents) @ `186386d26d2750ab21b39740f936d5a3567a7afb` |
+| `dsh-image-gen` — 图像工坊 | 0.12.2 | npm：`dsh-image-gen`；[源码](https://github.com/shanliuling/dsh-image-gen) |
+| `dsh-next-step-suggestion` | 0.3.1 | [Panmax/dsh-next-step-suggestion](https://github.com/Panmax/dsh-next-step-suggestion) @ `f16ad4b0a9277efbc6958e57861f655e9164d327` |
+<!-- plugin-table:end -->
 
 `dsh-discover-agents` 未发布到 npm，只能从 Git 提交安装；索引里的版本固定到具体提交，因此内容不会随分支漂移。
 

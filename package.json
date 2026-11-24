@@ -10,7 +10,9 @@
     "discover": "node tools/discover-sources.mjs",
     "fetch": "node tools/fetch-sources.mjs",
     "sync": "node tools/sync-index.mjs",
-    "validate": "node tools/validate-index.mjs"
+    "validate": "node tools/validate-index.mjs",
+    "render-readme": "node tools/render-readme.mjs",
+    "test": "node --test"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-plugin-market-index": "0.2.2-rc.5"

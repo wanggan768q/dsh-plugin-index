@@ -34,7 +34,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: sync-index
+  # Both index-writing workflows share one lock to prevent concurrent pushes.
+  group: plugin-index-write
   cancel-in-progress: false
 
 jobs:
@@ -94,16 +95,22 @@ jobs:
       - name: Validate the rewritten index
         run: npm run validate
 
+      - name: Test README generation
+        run: npm test
+
+      - name: Update the README plugin table
+        run: npm run render-readme
+
       - name: Commit and push when the index changed
         run: |
           set -euo pipefail
           # `icons/` only exists once a release declares an icon, and `git add` fails on
           # a pathspec that matches nothing, so build the list from what is on disk.
-          paths="index.json sources.json"
+          paths="index.json sources.json README.md"
           if [ -d icons ]; then paths="${paths} icons"; fi
           # shellcheck disable=SC2086
           if git diff --quiet -- ${paths}; then
-            echo "index.json, sources.json, and icons are already up to date; nothing to commit"
+            echo "index.json, sources.json, README.md, and icons are already up to date; nothing to commit"
             exit 0
           fi
           git config user.name "github-actions[bot]"

@@ -52,7 +52,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: add-plugin
+  # Both index-writing workflows share one lock to prevent concurrent pushes.
+  group: plugin-index-write
   cancel-in-progress: false
 
 jobs:
@@ -136,13 +137,19 @@ jobs:
       - name: Validate the rewritten index
         run: npm run validate
 
+      - name: Test README generation
+        run: npm test
+
+      - name: Update the README plugin table
+        run: npm run render-readme
+
       # A dry run stops here: the tree shows what would be committed, and the run is
       # discarded without touching the branch.
       - name: Commit and push the new plugin
         if: env.ADD_DRY_RUN != '1'
         run: |
           set -euo pipefail
-          paths="index.json sources.json"
+          paths="index.json sources.json README.md"
           if [ -d icons ]; then paths="${paths} icons"; fi
           # shellcheck disable=SC2086
           if git diff --quiet -- ${paths}; then
