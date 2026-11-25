@@ -18,7 +18,7 @@ https://wanggan768q.github.io/dsh-plugin-index/index.json
 | 插件 | 版本 | 来源 |
 |---|---|---|
 | `dsh-discover-agents` — 工作区 Agent 发现 | 1.3.0 | [wanggan768q/dsh-discover-agents](https://github.com/wanggan768q/dsh-discover-agents) @ `186386d26d2750ab21b39740f936d5a3567a7afb` |
-| `dsh-image-gen` — 图像工坊 | 0.12.2 | npm：`dsh-image-gen`；[源码](https://github.com/shanliuling/dsh-image-gen) |
+| `dsh-image-gen` — 图像工坊 | 0.12.3 | npm：`dsh-image-gen`；[源码](https://github.com/shanliuling/dsh-image-gen) |
 | `dsh-next-step-suggestion` | 0.3.1 | [Panmax/dsh-next-step-suggestion](https://github.com/Panmax/dsh-next-step-suggestion) @ `f16ad4b0a9277efbc6958e57861f655e9164d327` |
 <!-- plugin-table:end -->
 
